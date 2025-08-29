@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: saferide-api
+  labels:
+    app: saferide
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: saferide
+  template:
+    metadata:
+      labels:
+        app: saferide
+    spec:
+      containers:
+      - name: saferide-api
+        image: your-docker-repo/saferide-api:latest
+        ports:
+        - containerPort: 80
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ConnectionStrings__DefaultConnection
+          valueFrom:
+            secretKeyRef:
+              name: saferide-db-secret
+              key: connectionString
+        resources:
+          requests:
+            memory: "256Mi"
+            cpu: "500m"
+          limits:
+            memory: "512Mi"
+            cpu: "1"
+      imagePullSecrets:
+      - name: regcred
