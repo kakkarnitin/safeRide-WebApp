@@ -37,8 +37,18 @@ jobs:
         run: |
           cd SafeRide/frontend
           npm run build
+          # Copy additional files needed for GitHub Pages
+          cp public/.nojekyll dist/ 2>/dev/null || echo ".nojekyll already exists"
+          cp dist/index.html dist/404.html
         env:
           NODE_ENV: production
+
+      - name: List build output (for debugging)
+        run: |
+          echo "Build output contents:"
+          ls -la SafeRide/frontend/dist/
+          echo "Checking index.html exists:"
+          test -f SafeRide/frontend/dist/index.html && echo "✓ index.html found" || echo "✗ index.html missing"
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
