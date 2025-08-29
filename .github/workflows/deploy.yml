@@ -3,20 +3,31 @@ name: Deploy to Azure and GitHub Pages
 on:
   push:
     branches: [ main ]
-  pull_request:
-    branches: [ main ]
+  workflow_dispatch:  # Allow manual triggering
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build-and-deploy-backend:
     runs-on: ubuntu-latest
+    if: false  # Disable backend deployment until Azure is configured
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
     
     - name: Setup .NET
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'  # Use 8.0 for better Azure compatibility
+        dotnet-version: '8.0.x'
     
     - name: Restore dependencies
       run: dotnet restore SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj
@@ -31,18 +42,22 @@ jobs:
       uses: azure/webapps-deploy@v2
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       with:
-        app-name: 'saferide-api'  # Your Azure Web App name
+        app-name: 'saferide-api'
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./publish
 
   build-and-deploy-frontend:
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     
     steps:
-    - uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@v4
     
     - name: Setup Node.js
-      uses: actions/setup-node@v3
+      uses: actions/setup-node@v4
       with:
         node-version: '18'
         cache: 'npm'
@@ -60,15 +75,14 @@ jobs:
       env:
         NODE_ENV: production
     
-    - name: Copy 404.html for GitHub Pages SPA support
-      run: |
-        cd SafeRide/frontend
-        cp dist/index.html dist/404.html
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+    
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: SafeRide/frontend/dist
     
     - name: Deploy to GitHub Pages
-      uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-      with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}
-        publish_dir: SafeRide/frontend/dist
-        # cname: your-custom-domain.com  # Uncomment and add your custom domain if you have one
+      id: deployment
+      uses: actions/deploy-pages@v4
