@@ -15,9 +15,10 @@ import { useAuth } from '../contexts/AuthContext';
 
 const AppRoutes = () => {
     const { isAuthenticated } = useAuth();
+    const basename = process.env.NODE_ENV === 'production' ? '/safeRide-WebApp' : '';
 
     return (
-        <Router>
+        <Router basename={basename}>
             {isAuthenticated && <NavBar />}
             <main className={isAuthenticated ? "container mx-auto px-4 py-8" : ""}>
                 <Routes>

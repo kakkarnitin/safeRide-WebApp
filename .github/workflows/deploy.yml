@@ -1,4 +1,4 @@
-name: Deploy to Azure
+name: Deploy to Azure and GitHub Pages
 
 on:
   push:
@@ -29,6 +29,7 @@ jobs:
     
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v2
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       with:
         app-name: 'saferide-api'  # Your Azure Web App name
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
@@ -59,9 +60,15 @@ jobs:
       env:
         NODE_ENV: production
     
+    - name: Copy 404.html for GitHub Pages SPA support
+      run: |
+        cd SafeRide/frontend
+        cp dist/index.html dist/404.html
+    
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       with:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         publish_dir: SafeRide/frontend/dist
+        # cname: your-custom-domain.com  # Uncomment and add your custom domain if you have one
