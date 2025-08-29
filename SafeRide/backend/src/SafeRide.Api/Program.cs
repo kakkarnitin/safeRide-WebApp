@@ -12,9 +12,21 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapper(typeof(Program));
 
-// Add Entity Framework with SQLite
-builder.Services.AddDbContext<SafeRideDbContext>(options =>
-    options.UseSqlite("Data Source=saferide.db"));
+// Add Entity Framework with environment-specific database
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddDbContext<SafeRideDbContext>(options =>
+        options.UseSqlite("Data Source=saferide.db"));
+}
+else
+{
+    // Production: Use PostgreSQL
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    
+    builder.Services.AddDbContext<SafeRideDbContext>(options =>
+        options.UseNpgsql(connectionString));
+}
 
 // Register repositories and services
 builder.Services.AddScoped(typeof(IRepository<>), typeof(GenericRepository<>));
@@ -32,10 +44,24 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://localhost:3001")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.WithOrigins("http://localhost:5173", "http://localhost:3000", "http://localhost:3001")
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
+        else
+        {
+            // Production CORS - add your GitHub Pages URL and custom domain
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+                ?? new[] { "https://kakkarnitin.github.io" };
+            
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader()
+                  .AllowCredentials();
+        }
     });
 });
 

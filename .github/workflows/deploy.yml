@@ -1,0 +1,67 @@
+name: Deploy to Azure
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy-backend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'  # Use 8.0 for better Azure compatibility
+    
+    - name: Restore dependencies
+      run: dotnet restore SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj
+    
+    - name: Build
+      run: dotnet build SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj --configuration Release --no-restore
+    
+    - name: Publish
+      run: dotnet publish SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj --configuration Release --output ./publish
+    
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
+      with:
+        app-name: 'saferide-api'  # Your Azure Web App name
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        package: ./publish
+
+  build-and-deploy-frontend:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: SafeRide/frontend/package-lock.json
+    
+    - name: Install dependencies
+      run: |
+        cd SafeRide/frontend
+        npm ci
+    
+    - name: Build
+      run: |
+        cd SafeRide/frontend
+        npm run build
+      env:
+        NODE_ENV: production
+    
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      if: github.ref == 'refs/heads/main'
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: SafeRide/frontend/dist

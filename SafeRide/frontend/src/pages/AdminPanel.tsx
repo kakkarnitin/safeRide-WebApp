@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { config } from '../config/environment';
 
 interface School {
   id: number;
@@ -46,7 +47,7 @@ const AdminPanel: React.FC = () => {
 
   const loadSchools = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/schools');
+      const response = await fetch(`${config.apiBaseUrl}/schools`);
       if (response.ok) {
         const data = await response.json();
         setSchools(data);
@@ -58,7 +59,7 @@ const AdminPanel: React.FC = () => {
 
   const loadPendingEnrollments = async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/schools/pending-enrollments');
+      const response = await fetch(`${config.apiBaseUrl}/schools/pending-enrollments`);
       if (response.ok) {
         const data = await response.json();
         setPendingEnrollments(data);
@@ -74,7 +75,7 @@ const AdminPanel: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await fetch('http://localhost:5001/api/schools', {
+      const response = await fetch(`${config.apiBaseUrl}/schools`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -128,7 +129,7 @@ const AdminPanel: React.FC = () => {
 
     for (const school of sampleSchools) {
       try {
-        await fetch('http://localhost:5001/api/schools', {
+        await fetch(`${config.apiBaseUrl}/schools`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -147,7 +148,7 @@ const AdminPanel: React.FC = () => {
 
   const handleEnrollmentApproval = async (enrollmentId: string, approve: boolean, adminNotes?: string, rejectionReason?: string) => {
     try {
-      const response = await fetch('http://localhost:5001/api/schools/approve-enrollment', {
+      const response = await fetch(`${config.apiBaseUrl}/schools/approve-enrollment`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { useAuth } from '../contexts/AuthContext';
+import { config } from '../config/environment';
 import LocationSearch from '../components/common/LocationSearch';
 import LandmarkInput from '../components/common/LandmarkInput';
 
@@ -29,7 +30,7 @@ const OfferRide: React.FC = () => {
 
     const fetchApprovedSchools = async () => {
         try {
-            const response = await fetch('http://localhost:5001/api/schools/approved-schools');
+            const response = await fetch(`${config.apiBaseUrl}/schools/approved-schools`);
             if (response.ok) {
                 const schools = await response.json();
                 setApprovedSchools(schools);
