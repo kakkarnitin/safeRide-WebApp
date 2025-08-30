@@ -153,6 +153,10 @@ jobs:
             ASPNETCORE_URLS=http://+:80 \
             ConnectionStrings__DefaultConnection="Data Source=/data/saferide.db" \
             UseSQLite=true \
+            Authentication__Microsoft__ClientId="${{ secrets.MICROSOFT_CLIENT_ID }}" \
+            Authentication__Microsoft__ClientSecret="${{ secrets.MICROSOFT_CLIENT_SECRET }}" \
+            Authentication__Microsoft__TenantId="${{ secrets.MICROSOFT_TENANT_ID }}" \
+            Email__SmtpPassword="${{ secrets.SMTP_PASSWORD }}" \
           --azure-file-volume-account-name "$STORAGE_ACCOUNT" \
           --azure-file-volume-account-key "$STORAGE_KEY" \
           --azure-file-volume-share-name "saferide-data" \
