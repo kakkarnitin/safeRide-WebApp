@@ -22,7 +22,7 @@ const AppRoutes = () => {
     
     // Show navbar if user is authenticated via either method
     const isAuthenticated = isTraditionalAuth || isMicrosoftAuth;
-    const basename = process.env.NODE_ENV === 'production' ? '/safeRide-WebApp' : '';
+    const basename = ''; // Use root path for Azure Static Web Apps
 
     // Component to handle root route redirection
     const RootRedirect = () => {

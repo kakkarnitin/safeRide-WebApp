@@ -6,11 +6,11 @@ export const msalConfig: Configuration = {
     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'mock-client-id', // Application (client) ID
     authority: 'https://login.microsoftonline.com/consumers', // For personal Microsoft accounts
     redirectUri: import.meta.env.NODE_ENV === 'production' 
-      ? 'https://kakkarnitin.github.io/safeRide-WebApp/' 
-      : window.location.origin, // Use current origin to handle any port
+      ? 'https://calm-stone-0187f440f.2.azurestaticapps.net' 
+      : window.location.origin, // Use Azure Static Web Apps URL
     postLogoutRedirectUri: import.meta.env.NODE_ENV === 'production'
-      ? 'https://kakkarnitin.github.io/safeRide-WebApp/'
-      : window.location.origin, // Use current origin to handle any port
+      ? 'https://calm-stone-0187f440f.2.azurestaticapps.net'
+      : window.location.origin, // Use Azure Static Web Apps URL
   },
   cache: {
     cacheLocation: 'localStorage', // Cache location

@@ -5,7 +5,7 @@ export const environment = {
   microsoftAuth: {
     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'your-azure-ad-client-id',
     tenantId: 'consumers',
-    redirectUri: window.location.origin,
+    redirectUri: 'https://calm-stone-0187f440f.2.azurestaticapps.net',
   },
   features: {
     enableEmailNotifications: true,
