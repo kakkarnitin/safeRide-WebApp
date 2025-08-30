@@ -1,4 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Identity.Web;
+using System.Security.Claims;
 using SafeRide.Api.DTOs.Auth;
 using SafeRide.Core.Interfaces;
 using SafeRide.Core.Entities;
@@ -70,6 +73,90 @@ namespace SafeRide.Api.Controllers
                 return NotFound(result.Errors);
 
             return Ok(new { Message = "Email verified successfully." });
+        }
+
+        [HttpPost("microsoft")]
+        [Authorize]
+        public async Task<IActionResult> MicrosoftAuth()
+        {
+            try
+            {
+                // Get user information from Microsoft token claims
+                var email = User.FindFirst(ClaimTypes.Email)?.Value 
+                    ?? User.FindFirst("preferred_username")?.Value
+                    ?? User.FindFirst("upn")?.Value;
+                
+                var name = User.FindFirst(ClaimTypes.Name)?.Value 
+                    ?? User.FindFirst("name")?.Value
+                    ?? "Microsoft User"; // Default name if not provided
+                
+                var objectId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                    ?? User.FindFirst("sub")?.Value
+                    ?? User.FindFirst("oid")?.Value;
+
+                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(objectId))
+                {
+                    return BadRequest(new { Message = "Invalid Microsoft token - missing email or user ID" });
+                }
+
+                // Check if user exists or create new one
+                var result = await _userService.AuthenticateOrCreateMicrosoftUserAsync(email, name, objectId);
+                
+                if (!result.Success)
+                    return BadRequest(result.Errors);
+
+                return Ok(new { 
+                    Token = result.Token,
+                    User = new {
+                        Id = result.User.Id.ToString(),
+                        Email = result.User.Email,
+                        Name = result.User.FullName,
+                        IsVerified = result.User.IsVerified,
+                        Provider = "Microsoft"
+                    }
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Authentication failed", Error = ex.Message });
+            }
+        }
+
+        [HttpGet("profile")]
+        [Authorize]
+        public async Task<IActionResult> GetProfile()
+        {
+            try
+            {
+                var email = User.FindFirst(ClaimTypes.Email)?.Value 
+                    ?? User.FindFirst("preferred_username")?.Value
+                    ?? User.FindFirst("upn")?.Value;
+
+                if (string.IsNullOrEmpty(email))
+                {
+                    return BadRequest(new { Message = "Invalid token - missing email" });
+                }
+
+                var user = await _userService.GetByEmailAsync(email);
+                if (user == null)
+                {
+                    return NotFound(new { Message = "User not found" });
+                }
+
+                return Ok(new {
+                    Id = user.Id.ToString(),
+                    Email = user.Email,
+                    Name = user.FullName,
+                    PhoneNumber = user.PhoneNumber,
+                    IsVerified = user.IsVerified,
+                    CreditPoints = user.CreditPoints,
+                    VerificationStatus = user.VerificationStatus.ToString()
+                });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { Message = "Failed to get profile", Error = ex.Message });
+            }
         }
     }
 }

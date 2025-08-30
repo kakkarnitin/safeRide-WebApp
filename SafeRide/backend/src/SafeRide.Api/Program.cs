@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Identity.Web;
 using SafeRide.Core.Interfaces;
 using SafeRide.Core.Services;
 using SafeRide.Infrastructure.Data;
@@ -38,6 +40,14 @@ builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IVerificationService, VerificationService>();
 builder.Services.AddScoped<IRideService, RideService>();
 builder.Services.AddScoped<ICreditService, CreditService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
+
+// Configure Microsoft Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+// Add authorization
+builder.Services.AddAuthorization();
 
 // Configure CORS for frontend
 builder.Services.AddCors(options =>
@@ -76,6 +86,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors("AllowFrontend");
 app.UseHttpsRedirection();
+app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
 

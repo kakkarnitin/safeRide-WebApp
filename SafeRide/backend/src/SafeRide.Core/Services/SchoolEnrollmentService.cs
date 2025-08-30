@@ -8,15 +8,18 @@ namespace SafeRide.Core.Services
         private readonly IParentSchoolEnrollmentRepository _enrollmentRepository;
         private readonly ISchoolRepository _schoolRepository;
         private readonly IParentRepository _parentRepository;
+        private readonly IEmailService _emailService;
 
         public SchoolEnrollmentService(
             IParentSchoolEnrollmentRepository enrollmentRepository,
             ISchoolRepository schoolRepository,
-            IParentRepository parentRepository)
+            IParentRepository parentRepository,
+            IEmailService emailService)
         {
             _enrollmentRepository = enrollmentRepository;
             _schoolRepository = schoolRepository;
             _parentRepository = parentRepository;
+            _emailService = emailService;
         }
 
         public async Task<OperationResult> RequestEnrollmentAsync(Guid parentId, int schoolId, string? parentNotes)
@@ -58,6 +61,17 @@ namespace SafeRide.Core.Services
                 };
 
                 await _enrollmentRepository.AddAsync(enrollment);
+
+                // Send email notification to admins
+                _ = Task.Run(async () =>
+                {
+                    await _emailService.SendSchoolEnrollmentNotificationAsync(
+                        parent.Email,
+                        parent.FullName,
+                        school.Name,
+                        enrollment.Id.ToString()
+                    );
+                });
 
                 return new OperationResult { Success = true };
             }

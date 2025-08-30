@@ -14,5 +14,8 @@ namespace SafeRide.Core.Interfaces
     {
         Task<OperationResult> RegisterAsync(Parent parent);
         Task<OperationResult> LoginAsync(string email, string password);
+        Task<OperationResult> AuthenticateOrCreateMicrosoftUserAsync(string email, string name, string microsoftId);
+        Task<Parent?> GetByEmailAsync(string email);
+        Task<Parent?> GetByMicrosoftIdAsync(string microsoftId);
     }
 }

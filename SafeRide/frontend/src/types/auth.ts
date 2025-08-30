@@ -11,7 +11,19 @@ export interface Parent {
 
 export interface AuthResponse {
     token: string;
-    parent: Parent;
+    user: {
+        id: string;
+        email: string;
+        name: string;
+        isVerified: boolean;
+        provider?: string;
+    };
+}
+
+export interface ApiResponse<T> {
+    success: boolean;
+    data?: T;
+    errors?: string[];
 }
 
 export interface RegisterRequest {

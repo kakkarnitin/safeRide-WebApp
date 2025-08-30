@@ -21,7 +21,7 @@ const LandmarkInput: React.FC<LandmarkInputProps> = ({
 
     return (
         <div className={className}>
-            <label htmlFor={`landmark-${label}`} className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor={`landmark-${label}`} className="block text-sm font-medium text-gray-700 mb-2">
                 {label}
             </label>
             <input
@@ -30,10 +30,10 @@ const LandmarkInput: React.FC<LandmarkInputProps> = ({
                 value={value}
                 onChange={handleInputChange}
                 placeholder={placeholder}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 placeholder-gray-400 text-sm"
             />
-            <p className="text-xs text-gray-500 mt-1">
-                Optional: Add a landmark or specific instructions (e.g., "Near the big oak tree", "School main entrance")
+            <p className="text-xs text-gray-500 mt-2">
+                Optional: Add a landmark or reference point for easier identification
             </p>
         </div>
     );

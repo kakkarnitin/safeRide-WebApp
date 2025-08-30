@@ -11,6 +11,7 @@ namespace SafeRide.Core.Entities
         public required string PhoneNumber { get; set; }
         public required string DrivingLicenseNumber { get; set; }
         public required string WorkingWithChildrenCardNumber { get; set; }
+        public string? MicrosoftId { get; set; } // Microsoft OAuth user ID
         public int CreditPoints { get; set; } = 5;
         public bool IsVerified { get; set; }
         public VerificationStatus VerificationStatus { get; set; } = VerificationStatus.Pending;

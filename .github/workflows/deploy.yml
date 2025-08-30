@@ -18,7 +18,7 @@ concurrency:
 jobs:
   build-and-deploy-backend:
     runs-on: ubuntu-latest
-    if: false  # Disable backend deployment until Azure is configured
+    # Remove the "if: false" condition to enable backend deployment
     
     steps:
     - name: Checkout
@@ -27,7 +27,7 @@ jobs:
     - name: Setup .NET
       uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'
+        dotnet-version: '9.0.x'
     
     - name: Restore dependencies
       run: dotnet restore SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj
@@ -39,10 +39,10 @@ jobs:
       run: dotnet publish SafeRide/backend/src/SafeRide.Api/SafeRide.Api.csproj --configuration Release --output ./publish
     
     - name: Deploy to Azure Web App
-      uses: azure/webapps-deploy@v2
+      uses: azure/webapps-deploy@v3
       if: github.ref == 'refs/heads/main' && github.event_name == 'push'
       with:
-        app-name: 'saferide-api'
+        app-name: ${{ vars.AZURE_WEBAPP_NAME }}
         publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
         package: ./publish
 

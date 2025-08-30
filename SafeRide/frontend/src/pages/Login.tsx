@@ -1,16 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useMicrosoftAuth } from '../contexts/MicrosoftAuthContext';
+import MicrosoftLoginButton from '../components/auth/MicrosoftLoginButton';
+import { config } from '../config/environment';
 
 const Login: React.FC = () => {
     const navigate = useNavigate();
-    const { login } = useAuth();
+    const { login, isAuthenticated: isTraditionalAuth } = useAuth();
+    const { login: microsoftLogin, isAuthenticated: isMicrosoftAuthenticated } = useMicrosoftAuth();
     const [formData, setFormData] = useState({
         email: '',
-        password: '',
+        password: ''
     });
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<string[]>([]);
+
+    // Redirect if user is already authenticated with either method
+    useEffect(() => {
+        if (isMicrosoftAuthenticated || isTraditionalAuth) {
+            // Use setTimeout to ensure the redirect happens after render
+            setTimeout(() => {
+                navigate('/dashboard', { replace: true });
+            }, 100);
+        }
+    }, [isMicrosoftAuthenticated, isTraditionalAuth, navigate]);
+
+    // Don't show redirect message, just let the navigation happen
+    // if (isMicrosoftAuthenticated || isTraditionalAuth) {
+    //     console.log('Login: Authenticated user detected, showing redirect message');
+    //     return (
+    //         <div className="flex justify-center items-center min-h-screen">
+    //             <div className="text-lg text-gray-600">Redirecting to dashboard...</div>
+    //         </div>
+    //     );
+    // }
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -32,8 +56,6 @@ const Login: React.FC = () => {
             
             if (result.success) {
                 console.log('Login successful, navigating to dashboard');
-                // Don't clear form on success to help debug
-                // setFormData({ email: '', password: '' });
                 navigate('/dashboard');
             } else {
                 console.log('Login failed:', result.errors);
@@ -47,6 +69,40 @@ const Login: React.FC = () => {
         }
     };
 
+    const handleMicrosoftLogin = async () => {
+        try {
+            setIsLoading(true);
+            setErrors([]);
+            console.log('Starting Microsoft login process...');
+            
+            await microsoftLogin();
+            console.log('Microsoft login completed successfully');
+            
+            // If successful, navigate to dashboard
+            navigate('/dashboard');
+        } catch (error) {
+            console.error('Microsoft login error:', error);
+            
+            let errorMessage = 'Microsoft login failed. Please try again.';
+            
+            // Provide more specific error messages
+            if (error && typeof error === 'object') {
+                const msalError = error as any;
+                if (msalError.errorCode === 'user_cancelled') {
+                    errorMessage = 'Login was cancelled. Please try again.';
+                } else if (msalError.errorCode === 'popup_window_error') {
+                    errorMessage = 'Popup was blocked. Please allow popups for this site and try again.';
+                } else if (msalError.message) {
+                    errorMessage = `Login failed: ${msalError.message}`;
+                }
+            }
+            
+            setErrors([errorMessage]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
             <div className="max-w-md w-full space-y-8">
@@ -55,23 +111,31 @@ const Login: React.FC = () => {
                         Sign in to SafeRide
                     </h2>
                     <p className="mt-2 text-center text-sm text-gray-600">
-                        Or{' '}
-                        <Link to="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                            create a new account
-                        </Link>
+                        Environment: {config.environment}
                     </p>
                 </div>
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                    {errors.length > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded-md p-4">
-                            <div className="text-sm text-red-600">
-                                {errors.map((error, index) => (
-                                    <p key={index}>{error}</p>
-                                ))}
+
+                {/* Error Display */}
+                {errors.length > 0 && (
+                    <div className="rounded-md bg-red-50 p-4">
+                        <div className="flex">
+                            <div className="ml-3">
+                                <h3 className="text-sm font-medium text-red-800">
+                                    There were errors with your submission
+                                </h3>
+                                <div className="mt-2 text-sm text-red-700">
+                                    <ul className="list-disc list-inside space-y-1">
+                                        {errors.map((error, index) => (
+                                            <li key={index}>{error}</li>
+                                        ))}
+                                    </ul>
+                                </div>
                             </div>
                         </div>
-                    )}
-                    
+                    </div>
+                )}
+
+                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div className="space-y-4">
                         <div>
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700">
@@ -117,6 +181,36 @@ const Login: React.FC = () => {
                         </button>
                     </div>
                 </form>
+
+                {/* Divider */}
+                <div className="mt-6">
+                    <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-gray-300" />
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                            <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Microsoft Login */}
+                <div className="mt-6">
+                    <MicrosoftLoginButton 
+                        onClick={handleMicrosoftLogin}
+                        disabled={isLoading}
+                    />
+                </div>
+
+                {/* Register link */}
+                <div className="mt-6 text-center">
+                    <Link 
+                        to="/register" 
+                        className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
+                    >
+                        Don't have an account? Sign up
+                    </Link>
+                </div>
             </div>
         </div>
     );

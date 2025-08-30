@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useMicrosoftAuth } from '../contexts/MicrosoftAuthContext';
 import { apiService, RideOffer } from '../services/apiService';
 
 interface DashboardStats {
@@ -10,7 +11,12 @@ interface DashboardStats {
 }
 
 const Dashboard: React.FC = () => {
-    const { user } = useAuth();
+    const { user: traditionalUser } = useAuth();
+    const { user: microsoftUser } = useMicrosoftAuth();
+    
+    // Use whichever user is available (prioritize Microsoft auth)
+    const user = microsoftUser || traditionalUser;
+    
     const [stats, setStats] = useState<DashboardStats>({
         ridesOffered: 0,
         ridesRequested: 0,
@@ -26,6 +32,12 @@ const Dashboard: React.FC = () => {
             try {
                 setLoading(true);
                 setError(null);
+
+                // Don't fetch data if no user is available yet
+                if (!user) {
+                    setLoading(false);
+                    return;
+                }
 
                 // Fetch all rides to calculate stats
                 const ridesResponse = await apiService.getRides();
@@ -78,10 +90,18 @@ const Dashboard: React.FC = () => {
         );
     }
 
+    if (!user) {
+        return (
+            <div className="flex justify-center items-center min-h-96">
+                <div className="text-lg text-gray-600">No user information available</div>
+            </div>
+        );
+    }
+
     return (
         <div className="max-w-6xl mx-auto p-6">
             <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">Welcome, {user?.name || user?.email}!</h1>
+                <h1 className="text-3xl font-bold text-gray-900">Welcome, {user?.name || user?.email || 'User'}!</h1>
                 <p className="text-gray-600 mt-2">Here's your SafeRide activity overview</p>
             </div>
 
