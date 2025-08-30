@@ -13,8 +13,17 @@ show_status() {
         echo "   Status: $STATUS"
         if [ "$STATUS" = "Running" ]; then
             FQDN=$(az container show --resource-group "$RESOURCE_GROUP" --name "$CONTAINER_NAME" --query "ipAddress.fqdn" --output tsv)
-            echo "   URL: http://$FQDN"
+            echo "   🔗 API URL: http://$FQDN/api"
+            echo "   📄 Swagger: http://$FQDN/swagger"
             echo "   💰 Currently billing (pay-per-second)"
+            
+            # Test if API is responding
+            echo "   🧪 Testing API..."
+            if curl -s "http://$FQDN/api/health" &>/dev/null; then
+                echo "   ✅ API is responding"
+            else
+                echo "   ⏳ API starting up... (may take 1-2 minutes)"
+            fi
         else
             echo "   💰 Not billing - container is stopped"
         fi

@@ -1,16 +1,19 @@
 #!/bin/bash
 
-# Ultra-Low-Cost SafeRide Deployment
+# Ultra-Low-Cost SafeRide Deployment with actual .NET application
 # Uses free/minimal cost Azure services
 
 set -e
+
+# Get script directory for relative paths
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 RESOURCE_GROUP="saferide-free-rg"
 LOCATION="Australia Southeast"
 STORAGE_ACCOUNT="saferide$(date +%s | tail -c 8)"
 CONTAINER_GROUP="saferide-containers"
 
-echo "💰 Starting ultra-low-cost SafeRide deployment..."
+echo "💰 Starting ultra-low-cost SafeRide deployment with .NET application..."
 
 # Check if user is logged in to Azure
 if ! az account show &> /dev/null; then
@@ -45,26 +48,83 @@ az storage share create \
   --account-name "$STORAGE_ACCOUNT" \
   --account-key "$STORAGE_KEY"
 
-# Create container with minimal resources
+# Create container with actual .NET application
+echo "🐳 Building and deploying .NET application to Container Instance..."
+
+# First, we need to build the .NET app locally and create a deployment package
+echo "🔨 Building .NET application..."
+cd "$SCRIPT_DIR/../../backend/src/SafeRide.Api"
+
+# Restore and build the application
+dotnet restore
+dotnet build --configuration Release --no-restore
+dotnet publish --configuration Release --output ./publish --no-build
+
+# Create a simple startup script for the container
+cat > ./publish/start.sh << 'EOF'
+#!/bin/bash
+cd /app
+export ASPNETCORE_ENVIRONMENT=Production
+export ASPNETCORE_URLS=http://+:80
+export ConnectionStrings__DefaultConnection="Data Source=/data/saferide.db"
+export UseSQLite=true
+dotnet SafeRide.Api.dll
+EOF
+
+chmod +x ./publish/start.sh
+
+# Create Dockerfile for the container
+cat > ./publish/Dockerfile << 'EOF'
+FROM mcr.microsoft.com/dotnet/aspnet:9.0
+WORKDIR /app
+COPY . .
+EXPOSE 80
+RUN chmod +x start.sh
+ENTRYPOINT ["./start.sh"]
+EOF
+
+# Build container image locally
+echo "🐳 Building container image..."
+cd ./publish
+docker build -t saferide-api .
+
+# Create a tar file of the application
+echo "📦 Creating deployment package..."
+tar -czf ../saferide-app.tar.gz .
+cd ..
+
+echo "⬆️ Uploading application to Azure..."
+# Upload the application files to Azure File Share
+az storage file upload-batch \
+  --destination "saferide-data" \
+  --source "./publish" \
+  --account-name "$STORAGE_ACCOUNT" \
+  --account-key "$STORAGE_KEY" \
+  --destination-path "app"
+
+# Create container with .NET runtime and mount the application
 az container create \
   --resource-group "$RESOURCE_GROUP" \
   --name "saferide-api" \
-  --image "nginx:alpine" \
-  --dns-name-label "saferide-free-$(date +%s | tail -c 6)" \
+  --image "mcr.microsoft.com/dotnet/aspnet:9.0" \
+  --dns-name-label "saferide-api-$(date +%s | tail -c 6)" \
   --ports 80 \
   --cpu 0.5 \
-  --memory 0.5 \
+  --memory 1 \
+  --command-line "/bin/bash -c 'cd /data/app && chmod +x start.sh && ./start.sh'" \
   --environment-variables \
     ASPNETCORE_ENVIRONMENT=Production \
     ASPNETCORE_URLS=http://+:80 \
-    UseInMemoryDatabase=false \
-    UseSQLite=true \
     ConnectionStrings__DefaultConnection="Data Source=/data/saferide.db" \
+    UseSQLite=true \
   --azure-file-volume-account-name "$STORAGE_ACCOUNT" \
   --azure-file-volume-account-key "$STORAGE_KEY" \
   --azure-file-volume-share-name "saferide-data" \
   --azure-file-volume-mount-path "/data" \
   --restart-policy OnFailure
+
+# Go back to script directory
+cd "$SCRIPT_DIR"
 
 # Get container FQDN
 FQDN=$(az container show \
