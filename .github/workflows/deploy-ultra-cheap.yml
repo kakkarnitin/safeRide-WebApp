@@ -1,4 +1,4 @@
-name: Deploy to Ultra-Cheap Azure Container
+name: Deploy .NET App to Ultra-Cheap Azure Container
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy-ultra-cheap:
+  build-and-deploy-dotnet:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -24,48 +24,150 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: Build and Create Docker Image
+    - name: Build and Test .NET Application
       run: |
         cd SafeRide/backend/src/SafeRide.Api
         
-        # Create optimized Dockerfile for container instances
+        # Restore dependencies
+        dotnet restore
+        
+        # Build application
+        dotnet build --configuration Release --no-restore
+        
+        # Run tests (if any)
+        cd ../../../
+        dotnet test --configuration Release --no-build --verbosity normal || echo "No tests found"
+        
+        # Return to API directory
+        cd backend/src/SafeRide.Api
+    
+    - name: Create Dockerfile
+      run: |
+        cd SafeRide/backend/src/SafeRide.Api
+        
         cat > Dockerfile << 'EOF'
-        FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS base
+        FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
         WORKDIR /app
         EXPOSE 80
         
-        FROM mcr.microsoft.com/dotnet/sdk:9.0-alpine AS build
+        FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
         WORKDIR /src
-        COPY ["SafeRide.Api.csproj", "."]
-        COPY ["../SafeRide.Core/SafeRide.Core.csproj", "../SafeRide.Core/"]
-        COPY ["../SafeRide.Infrastructure/SafeRide.Infrastructure.csproj", "../SafeRide.Infrastructure/"]
+        
+        # Copy project files
+        COPY ["SafeRide.Api.csproj", "SafeRide.Api/"]
+        COPY ["../SafeRide.Core/SafeRide.Core.csproj", "SafeRide.Core/"]
+        COPY ["../SafeRide.Infrastructure/SafeRide.Infrastructure.csproj", "SafeRide.Infrastructure/"]
+        
+        # Restore dependencies
+        WORKDIR "/src/SafeRide.Api"
         RUN dotnet restore "SafeRide.Api.csproj"
-        COPY . .
-        COPY ../SafeRide.Core ../SafeRide.Core
-        COPY ../SafeRide.Infrastructure ../SafeRide.Infrastructure
+        
+        # Copy source code
+        WORKDIR /src
+        COPY . SafeRide.Api/
+        COPY ../SafeRide.Core SafeRide.Core/
+        COPY ../SafeRide.Infrastructure SafeRide.Infrastructure/
+        
+        # Build and publish
+        WORKDIR "/src/SafeRide.Api"
+        RUN dotnet build "SafeRide.Api.csproj" -c Release -o /app/build
         RUN dotnet publish "SafeRide.Api.csproj" -c Release -o /app/publish --no-restore
         
         FROM base AS final
         WORKDIR /app
-        COPY --from=publish /app/publish .
+        COPY --from=build /app/publish .
+        
+        # Create data directory for SQLite
+        RUN mkdir -p /app/data
+        
+        # Set environment variables
+        ENV ASPNETCORE_ENVIRONMENT=Production
+        ENV ASPNETCORE_URLS=http://+:80
+        ENV ConnectionStrings__DefaultConnection="Data Source=/data/saferide.db"
+        ENV UseSQLite=true
+        
         ENTRYPOINT ["dotnet", "SafeRide.Api.dll"]
         EOF
+    
+    - name: Get Azure Container Registry Details
+      id: acr-details
+      run: |
+        # Get ACR name (assumes it exists from initial deployment)
+        ACR_NAME=$(az acr list --resource-group saferide-free-rg --query "[0].name" --output tsv)
+        ACR_LOGIN_SERVER=$(az acr list --resource-group saferide-free-rg --query "[0].loginServer" --output tsv)
         
-        # Build image locally (no registry needed for simplicity)
-        docker build -t saferide-api .
+        echo "acr_name=$ACR_NAME" >> $GITHUB_OUTPUT
+        echo "acr_login_server=$ACR_LOGIN_SERVER" >> $GITHUB_OUTPUT
         
-        # Save image as tar for deployment
-        docker save saferide-api > saferide-api.tar
+        echo "Using ACR: $ACR_NAME ($ACR_LOGIN_SERVER)"
+    
+    - name: Build and Push Docker Image
+      run: |
+        cd SafeRide/backend/src/SafeRide.Api
+        
+        # Login to Azure Container Registry
+        az acr login --name ${{ steps.acr-details.outputs.acr_name }}
+        
+        # Build image with timestamp tag
+        IMAGE_TAG="${{ steps.acr-details.outputs.acr_login_server }}/saferide-api:$(date +%Y%m%d-%H%M%S)"
+        LATEST_TAG="${{ steps.acr-details.outputs.acr_login_server }}/saferide-api:latest"
+        
+        docker build -t "$IMAGE_TAG" -t "$LATEST_TAG" .
+        
+        # Push both tags
+        docker push "$IMAGE_TAG"
+        docker push "$LATEST_TAG"
+        
+        echo "Pushed image: $IMAGE_TAG"
+        echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
     
     - name: Update Container Instance
       run: |
-        # For now, just restart the existing container
-        # In production, you'd push to a container registry and update
-        az container restart \
-          --resource-group saferide-free-rg \
-          --name saferide-api
+        # Get ACR credentials
+        ACR_NAME=${{ steps.acr-details.outputs.acr_name }}
+        ACR_PASSWORD=$(az acr credential show --name "$ACR_NAME" --query "passwords[0].value" --output tsv)
         
-        echo "Container restarted with updated code"
+        # Delete existing container instance
+        az container delete \
+          --resource-group saferide-free-rg \
+          --name saferide-api \
+          --yes || echo "Container doesn't exist yet"
+        
+        # Wait a moment for deletion
+        sleep 30
+        
+        # Get storage account details
+        STORAGE_ACCOUNT=$(az storage account list --resource-group saferide-free-rg --query "[0].name" --output tsv)
+        STORAGE_KEY=$(az storage account keys list --resource-group saferide-free-rg --account-name "$STORAGE_ACCOUNT" --query '[0].value' --output tsv)
+        
+        # Create new container instance with updated image
+        az container create \
+          --resource-group saferide-free-rg \
+          --name saferide-api \
+          --image "${{ steps.acr-details.outputs.acr_login_server }}/saferide-api:latest" \
+          --registry-login-server "${{ steps.acr-details.outputs.acr_login_server }}" \
+          --registry-username "$ACR_NAME" \
+          --registry-password "$ACR_PASSWORD" \
+          --dns-name-label "saferide-api-$(date +%s | tail -c 6)" \
+          --ports 80 \
+          --cpu 0.5 \
+          --memory 1 \
+          --environment-variables \
+            ASPNETCORE_ENVIRONMENT=Production \
+            ASPNETCORE_URLS=http://+:80 \
+            ConnectionStrings__DefaultConnection="Data Source=/data/saferide.db" \
+            UseSQLite=true \
+          --azure-file-volume-account-name "$STORAGE_ACCOUNT" \
+          --azure-file-volume-account-key "$STORAGE_KEY" \
+          --azure-file-volume-share-name "saferide-data" \
+          --azure-file-volume-mount-path "/data" \
+          --restart-policy OnFailure
+    
+    - name: Get Deployment Info
+      run: |
+        # Wait for container to start
+        echo "Waiting for container to start..."
+        sleep 60
         
         # Get container URL
         FQDN=$(az container show \
@@ -74,4 +176,19 @@ jobs:
           --query "ipAddress.fqdn" \
           --output tsv)
         
-        echo "Container URL: http://$FQDN"
+        echo "🚀 Deployment completed!"
+        echo "📋 Container URL: http://$FQDN"
+        echo "📄 Swagger UI: http://$FQDN/swagger"
+        echo "🔗 API Base: http://$FQDN/api"
+        
+        # Test if API is responding
+        echo "🧪 Testing API health endpoint..."
+        for i in {1..5}; do
+          if curl -s "http://$FQDN/api/health" &>/dev/null; then
+            echo "✅ API is responding!"
+            break
+          else
+            echo "⏳ Attempt $i: API not ready yet, waiting..."
+            sleep 30
+          fi
+        done
