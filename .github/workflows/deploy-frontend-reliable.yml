@@ -1,0 +1,171 @@
+name: Deploy Frontend Only (Reliable)
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'SafeRide/frontend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: SafeRide/frontend/package-lock.json
+    
+    - name: Clear and Install Dependencies
+      run: |
+        cd SafeRide/frontend
+        
+        echo "🧹 Preparing clean environment..."
+        
+        # Remove existing node_modules and lock file if they exist
+        rm -rf node_modules
+        
+        # Clear npm cache
+        npm cache clean --force
+        
+        echo "📦 Installing dependencies with multiple attempts..."
+        
+        # Install with retries and fallbacks
+        for i in {1..3}; do
+          echo "Attempt $i of 3..."
+          
+          if npm ci --no-audit --no-fund --prefer-offline; then
+            echo "✅ npm ci succeeded"
+            break
+          else
+            echo "⚠️ npm ci failed, trying npm install..."
+            rm -f package-lock.json
+            
+            if npm install --no-audit --no-fund; then
+              echo "✅ npm install succeeded"
+              break
+            else
+              echo "❌ Attempt $i failed"
+              if [ $i -eq 3 ]; then
+                exit 1
+              fi
+              sleep 10
+            fi
+          fi
+        done
+    
+    - name: Build with Retry Logic
+      run: |
+        cd SafeRide/frontend
+        
+        echo "🔨 Building React application with retry logic..."
+        
+        # Build with multiple attempts
+        for i in {1..3}; do
+          echo "Build attempt $i of 3..."
+          
+          if npm run build; then
+            echo "✅ Build succeeded"
+            break
+          else
+            echo "⚠️ Build failed on attempt $i"
+            
+            # Clean and retry
+            rm -rf dist
+            npm run clean 2>/dev/null || true
+            
+            if [ $i -eq 3 ]; then
+              echo "❌ All build attempts failed"
+              exit 1
+            fi
+            
+            sleep 5
+          fi
+        done
+        
+        # Verify build output
+        echo "📁 Verifying build output..."
+        if [ ! -d "dist" ]; then
+          echo "❌ dist directory not found"
+          exit 1
+        fi
+        
+        if [ -z "$(ls -A dist)" ]; then
+          echo "❌ dist directory is empty"
+          exit 1
+        fi
+        
+        echo "✅ Build verification successful"
+        echo "📊 Build output size:"
+        du -sh dist/
+        echo "📋 Build contents:"
+        ls -la dist/
+    
+    - name: Deploy to Azure Static Web Apps (Attempt 1)
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "SafeRide/frontend"
+        output_location: "dist"
+        skip_app_build: true
+      continue-on-error: true
+      id: deploy_attempt_1
+    
+    - name: Wait Before Retry
+      if: steps.deploy_attempt_1.outcome == 'failure'
+      run: |
+        echo "⏳ First deployment failed, waiting before retry..."
+        echo "🔍 This is common with Azure Static Web Apps - retrying..."
+        sleep 45
+    
+    - name: Deploy to Azure Static Web Apps (Attempt 2)
+      if: steps.deploy_attempt_1.outcome == 'failure'
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "SafeRide/frontend"
+        output_location: "dist"
+        skip_app_build: true
+      continue-on-error: true
+      id: deploy_attempt_2
+    
+    - name: Wait Before Final Retry
+      if: steps.deploy_attempt_1.outcome == 'failure' && steps.deploy_attempt_2.outcome == 'failure'
+      run: |
+        echo "⏳ Second deployment failed, waiting before final retry..."
+        sleep 60
+    
+    - name: Deploy to Azure Static Web Apps (Final Attempt)
+      if: steps.deploy_attempt_1.outcome == 'failure' && steps.deploy_attempt_2.outcome == 'failure'
+      uses: Azure/static-web-apps-deploy@v1
+      with:
+        azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+        repo_token: ${{ secrets.GITHUB_TOKEN }}
+        action: "upload"
+        app_location: "SafeRide/frontend"
+        output_location: "dist"
+        skip_app_build: true
+    
+    - name: Deployment Summary
+      run: |
+        echo "🎉 Frontend deployment completed!"
+        echo "🌐 Your app should be available at:"
+        echo "   https://calm-stone-0187f440f.2.azurestaticapps.net"
+        echo ""
+        
+        if [ "${{ steps.deploy_attempt_1.outcome }}" == "success" ]; then
+          echo "✅ Deployed successfully on first attempt"
+        elif [ "${{ steps.deploy_attempt_2.outcome }}" == "success" ]; then
+          echo "✅ Deployed successfully on second attempt"
+        else
+          echo "✅ Deployed successfully on final attempt"
+        fi

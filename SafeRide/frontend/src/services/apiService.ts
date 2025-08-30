@@ -1,5 +1,6 @@
 // Base API configuration
-const API_BASE_URL = 'http://localhost:5001/api';
+import { config } from '../config/environment';
+const API_BASE_URL = config.apiBaseUrl;
 
 // Generic API response type
 interface ApiResponse<T> {

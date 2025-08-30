@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { config } from '../config/environment';
 
 interface School {
     id: number;
@@ -41,21 +42,21 @@ const SchoolEnrollment: React.FC = () => {
             setError(null);
 
             // Fetch available schools
-            const schoolsResponse = await fetch('http://localhost:5001/api/schools');
+            const schoolsResponse = await fetch(`${config.apiBaseUrl}/schools`);
             if (schoolsResponse.ok) {
                 const schoolsData = await schoolsResponse.json();
                 setSchools(schoolsData);
             }
 
             // Fetch user's enrollments
-            const enrollmentsResponse = await fetch('http://localhost:5001/api/schools/my-enrollments');
+            const enrollmentsResponse = await fetch(`${config.apiBaseUrl}/schools/my-enrollments`);
             if (enrollmentsResponse.ok) {
                 const enrollmentsData = await enrollmentsResponse.json();
                 setEnrollments(enrollmentsData);
             }
 
             // Fetch approved schools
-            const approvedResponse = await fetch('http://localhost:5001/api/schools/approved-schools');
+            const approvedResponse = await fetch(`${config.apiBaseUrl}/schools/approved-schools`);
             if (approvedResponse.ok) {
                 const approvedData = await approvedResponse.json();
                 setApprovedSchools(approvedData);
@@ -72,7 +73,7 @@ const SchoolEnrollment: React.FC = () => {
             setEnrolling(schoolId);
             setError(null);
 
-            const response = await fetch('http://localhost:5001/api/schools/enroll', {
+            const response = await fetch(`${config.apiBaseUrl}/schools/enroll`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
