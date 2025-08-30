@@ -22,13 +22,43 @@ if ! az account show &> /dev/null; then
     exit 1
 fi
 
+# Register required resource providers
+echo "📋 Registering required Azure resource providers..."
+echo "   - Microsoft.Web (App Service)"
+az provider register --namespace Microsoft.Web --wait
+
+echo "   - Microsoft.DBforPostgreSQL (PostgreSQL)"
+az provider register --namespace Microsoft.DBforPostgreSQL --wait
+
+echo "   - Microsoft.Storage (Storage)"
+az provider register --namespace Microsoft.Storage --wait
+
+echo "   - Microsoft.Insights (Application Insights)"
+az provider register --namespace Microsoft.Insights --wait
+
+echo "✅ Resource providers registered successfully!"
+
 # Create resource group
 echo "📦 Creating resource group..."
 az group create --name $RESOURCE_GROUP --location "$LOCATION"
 
-# Create App Service Plan (B1 for basic production, upgrade as needed)
+# Create App Service Plan (try multiple SKUs based on available quota)
 echo "📊 Creating App Service Plan..."
-az appservice plan create --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP --sku B1 --is-linux
+
+# Try Free tier first (F1)
+if az appservice plan create --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP --sku F1 --is-linux 2>/dev/null; then
+    echo "✅ Created F1 Free tier App Service Plan"
+# Try Shared tier (D1) 
+elif az appservice plan create --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP --sku D1 --is-linux 2>/dev/null; then
+    echo "✅ Created D1 Shared tier App Service Plan"
+# Try Basic A1 (uses Basic A Family vCPUs)
+elif az appservice plan create --name $APP_SERVICE_PLAN --resource-group $RESOURCE_GROUP --sku B1 --is-linux 2>/dev/null; then
+    echo "✅ Created B1 Basic tier App Service Plan (A-series)"
+else
+    echo "❌ Unable to create App Service Plan with available quota"
+    echo "💡 Please check your Azure quota limits or try a different region"
+    exit 1
+fi
 
 # Create PostgreSQL Flexible Server (updated syntax)
 echo "🗄️ Creating PostgreSQL server..."
