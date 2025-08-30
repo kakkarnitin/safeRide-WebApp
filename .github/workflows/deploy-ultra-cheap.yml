@@ -43,7 +43,7 @@ jobs:
     
     - name: Create Dockerfile
       run: |
-        cd SafeRide/backend/src/SafeRide.Api
+        cd SafeRide/backend
         
         cat > Dockerfile << 'EOF'
         FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
@@ -53,23 +53,19 @@ jobs:
         FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
         WORKDIR /src
         
-        # Copy project files
-        COPY ["SafeRide.Api.csproj", "SafeRide.Api/"]
-        COPY ["../SafeRide.Core/SafeRide.Core.csproj", "SafeRide.Core/"]
-        COPY ["../SafeRide.Infrastructure/SafeRide.Infrastructure.csproj", "SafeRide.Infrastructure/"]
+        # Copy project files for dependency resolution
+        COPY ["src/SafeRide.Api/SafeRide.Api.csproj", "src/SafeRide.Api/"]
+        COPY ["src/SafeRide.Core/SafeRide.Core.csproj", "src/SafeRide.Core/"]
+        COPY ["src/SafeRide.Infrastructure/SafeRide.Infrastructure.csproj", "src/SafeRide.Infrastructure/"]
         
         # Restore dependencies
-        WORKDIR "/src/SafeRide.Api"
-        RUN dotnet restore "SafeRide.Api.csproj"
+        RUN dotnet restore "src/SafeRide.Api/SafeRide.Api.csproj"
         
-        # Copy source code
-        WORKDIR /src
-        COPY . SafeRide.Api/
-        COPY ../SafeRide.Core SafeRide.Core/
-        COPY ../SafeRide.Infrastructure SafeRide.Infrastructure/
+        # Copy all source code
+        COPY . .
         
         # Build and publish
-        WORKDIR "/src/SafeRide.Api"
+        WORKDIR "/src/src/SafeRide.Api"
         RUN dotnet build "SafeRide.Api.csproj" -c Release -o /app/build
         RUN dotnet publish "SafeRide.Api.csproj" -c Release -o /app/publish --no-restore
         
@@ -78,7 +74,7 @@ jobs:
         COPY --from=build /app/publish .
         
         # Create data directory for SQLite
-        RUN mkdir -p /app/data
+        RUN mkdir -p /data
         
         # Set environment variables
         ENV ASPNETCORE_ENVIRONMENT=Production
@@ -103,7 +99,7 @@ jobs:
     
     - name: Build and Push Docker Image
       run: |
-        cd SafeRide/backend/src/SafeRide.Api
+        cd SafeRide/backend
         
         # Login to Azure Container Registry
         az acr login --name ${{ steps.acr-details.outputs.acr_name }}
