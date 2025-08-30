@@ -240,3 +240,4 @@ For support and questions, please open an issue in the GitHub repository.
 
 **Built with ❤️ using .NET 9, React 18, and modern web technologies**
 # Trigger deployment pipeline - Sat Aug 30 16:05:34 AEST 2025
+# Providers registered - Sat Aug 30 16:43:15 AEST 2025
