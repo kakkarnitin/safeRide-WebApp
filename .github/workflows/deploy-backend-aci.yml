@@ -1,0 +1,82 @@
+name: Deploy Backend API to Azure Container Instances
+
+on:
+  push:
+    branches: [ main ]
+    paths: 
+      - 'SafeRide/backend/**'
+  workflow_dispatch:
+
+jobs:
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+    
+    - name: Azure Login
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    
+    - name: Build and Push Docker Image
+      run: |
+        cd SafeRide/backend/src/SafeRide.Api
+        
+        # Create Dockerfile if it doesn't exist
+        cat > Dockerfile << 'EOF'
+        FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
+        WORKDIR /app
+        EXPOSE 80
+        
+        FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
+        WORKDIR /src
+        COPY ["SafeRide.Api.csproj", "."]
+        COPY ["../SafeRide.Core/SafeRide.Core.csproj", "../SafeRide.Core/"]
+        COPY ["../SafeRide.Infrastructure/SafeRide.Infrastructure.csproj", "../SafeRide.Infrastructure/"]
+        RUN dotnet restore "SafeRide.Api.csproj"
+        COPY . .
+        COPY ../SafeRide.Core ../SafeRide.Core
+        COPY ../SafeRide.Infrastructure ../SafeRide.Infrastructure
+        RUN dotnet build "SafeRide.Api.csproj" -c Release -o /app/build
+        
+        FROM build AS publish
+        RUN dotnet publish "SafeRide.Api.csproj" -c Release -o /app/publish
+        
+        FROM base AS final
+        WORKDIR /app
+        COPY --from=publish /app/publish .
+        ENTRYPOINT ["dotnet", "SafeRide.Api.dll"]
+        EOF
+        
+        # Build and push to Azure Container Registry
+        az acr build --registry saferideregistry --image saferide-api:latest .
+    
+    - name: Deploy to Container Instance
+      run: |
+        az container create \
+          --resource-group saferide-static-rg \
+          --name saferide-api \
+          --image saferideregistry.azurecr.io/saferide-api:latest \
+          --dns-name-label saferide-api-$(date +%s | tail -c 6) \
+          --ports 80 \
+          --cpu 1 \
+          --memory 1 \
+          --environment-variables \
+            ASPNETCORE_ENVIRONMENT=Production \
+            ASPNETCORE_URLS=http://+:80 \
+          --restart-policy Always
+        
+        # Get the FQDN
+        FQDN=$(az container show \
+          --resource-group saferide-static-rg \
+          --name saferide-api \
+          --query "ipAddress.fqdn" \
+          --output tsv)
+        
+        echo "Backend API deployed to: http://$FQDN"
