@@ -2,7 +2,7 @@
 export const config = {
   apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 
     (import.meta.env.MODE === 'production' 
-      ? 'http://saferide-api-37615.australiasoutheast.azurecontainer.io/api'  // Production Container Instance
+      ? 'http://saferide-api-39031.australiasoutheast.azurecontainer.io/api'  // Fixed Production API endpoint
       : 'http://localhost:5001/api'),  // Development backend URL
   
   environment: import.meta.env.MODE || 'development',

@@ -1,7 +1,7 @@
 // Production environment configuration for Azure Static Web Apps
 export const environment = {
   production: true,
-  apiUrl: 'http://saferide-api-37615.australiasoutheast.azurecontainer.io/api', // Updated to production Container Instance
+  apiUrl: 'http://saferide-api-39031.australiasoutheast.azurecontainer.io/api', // Updated to current Container Instance
   microsoftAuth: {
     clientId: import.meta.env.VITE_MICROSOFT_CLIENT_ID || 'your-azure-ad-client-id',
     tenantId: 'consumers',
