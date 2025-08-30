@@ -148,6 +148,7 @@ jobs:
           --ports 80 \
           --cpu 0.5 \
           --memory 1 \
+          --os-type Linux \
           --environment-variables \
             ASPNETCORE_ENVIRONMENT=Production \
             ASPNETCORE_URLS=http://+:80 \
