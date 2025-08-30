@@ -15,17 +15,19 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddAutoMapper(typeof(Program));
 
 // Add Entity Framework with environment-specific database
-if (builder.Environment.IsDevelopment())
+var useSqlite = builder.Configuration.GetValue<bool>("UseSQLite");
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
+    ?? "Data Source=saferide.db";
+
+if (useSqlite || builder.Environment.IsDevelopment())
 {
+    // Use SQLite for development or when explicitly configured
     builder.Services.AddDbContext<SafeRideDbContext>(options =>
-        options.UseSqlite("Data Source=saferide.db"));
+        options.UseSqlite(connectionString));
 }
 else
 {
-    // Production: Use PostgreSQL
-    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
-    
+    // Production: Use PostgreSQL only if SQLite is not specified
     builder.Services.AddDbContext<SafeRideDbContext>(options =>
         options.UseNpgsql(connectionString));
 }
@@ -63,9 +65,12 @@ builder.Services.AddCors(options =>
         }
         else
         {
-            // Production CORS - add your GitHub Pages URL and custom domain
+            // Production CORS - allow Azure Static Web Apps and Container Instance
             var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
-                ?? new[] { "https://kakkarnitin.github.io" };
+                ?? new[] { 
+                    "https://calm-stone-0187f440f.2.azurestaticapps.net",
+                    "https://kakkarnitin.github.io"
+                };
             
             policy.WithOrigins(allowedOrigins)
                   .AllowAnyMethod()
@@ -78,16 +83,35 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+// Enable Swagger in both development and production for API documentation
+app.UseSwagger();
+app.UseSwaggerUI(c =>
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "SafeRide API v1");
+    if (!app.Environment.IsDevelopment())
+    {
+        c.RoutePrefix = "swagger"; // Serve at /swagger in production
+    }
+});
 
 app.UseCors("AllowFrontend");
-app.UseHttpsRedirection();
+
+// Only use HTTPS redirection in production with HTTPS support
+if (app.Environment.IsProduction() && !builder.Configuration.GetValue<bool>("DisableHttpsRedirection"))
+{
+    app.UseHttpsRedirection();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
+
+// Add health check endpoint
+app.MapGet("/api/health", () => Results.Ok(new { 
+    status = "healthy", 
+    timestamp = DateTime.UtcNow,
+    environment = app.Environment.EnvironmentName 
+}));
+
 app.MapControllers();
 
 // Ensure database is created
